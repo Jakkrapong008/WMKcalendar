@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ปฏิทินกิจกรรม โรงเรียนวัดแม่กะ </title>
+    <title>ปฏิทินกิจกรรม โรงเรียนวัดแม่กะ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     
@@ -309,13 +309,22 @@
         </footer>
     </div>
 
+    <!-- Hidden Audio element for persistence -->
+    <audio id="ttsAudioPlayer" style="display:none"></audio>
+
     <script>
         const apiKey = "AIzaSyBDDum3ojnhCSrE2jLKIKjxwWuPWJ-iqSo";
         let currentAudio = null;
+        const globalAudioPlayer = document.getElementById('ttsAudioPlayer');
 
         async function speakText(text) {
             const speakBtn = document.getElementById('speakBtn');
             if (!text || speakBtn.classList.contains('loading')) return;
+
+            // --- Mobile Browser Trick: Prime/Unlock Audio ---
+            // เล่นเสียงเงียบๆ ทันทีที่คลิก เพื่อรักษา User Gesture ไว้
+            globalAudioPlayer.src = "data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+            globalAudioPlayer.play().catch(e => console.log("Audio priming failed", e));
 
             if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 
@@ -361,9 +370,26 @@
                 const wavBlob = pcmToWav(pcmBuffer, sampleRate);
                 const audioUrl = URL.createObjectURL(wavBlob);
 
-                currentAudio = new Audio(audioUrl);
-                currentAudio.onended = () => speakBtn.classList.remove('loading');
-                currentAudio.play();
+                // ใช้ Global player ที่ถูก Unlock แล้วในการเล่นเสียงจริง
+                globalAudioPlayer.src = audioUrl;
+                globalAudioPlayer.onended = () => {
+                    speakBtn.classList.remove('loading');
+                    URL.revokeObjectURL(audioUrl);
+                };
+                
+                // สั่งเล่นเสียง (Gesture ยังคงอยู่เพราะเรา Prime ไว้ตอนต้นฟังก์ชัน)
+                const playPromise = globalAudioPlayer.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error("Playback blocked:", error);
+                        speakBtn.classList.remove('loading');
+                        // หากยังถูกบล็อก ให้แสดงกล่องข้อความแนะนำ
+                        alert("การอ่านออกเสียงถูกระงับโดยบราวเซอร์ของคุณ โปรดเปิดหน้าเว็บนี้ด้วย Chrome หรือ Safari แทนเพื่อการใช้งานที่สมบูรณ์");
+                    });
+                }
+                
+                currentAudio = globalAudioPlayer;
+
             } catch (error) {
                 console.error("TTS Error:", error);
                 speakBtn.classList.remove('loading');
