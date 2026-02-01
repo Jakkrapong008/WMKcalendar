@@ -310,11 +310,20 @@
     </div>
 
     <script>
-        const apiKey = "AIzaSyAv7Knu7NCCyvd1ORP8Y3yJRnWv8L_PsNY";
+        /**
+         * สำคัญ: เพื่อความปลอดภัย โปรดนำ API Key ของคุณมาใส่ที่นี่
+         * และต้องไปที่ Google Cloud Console เพื่อจำกัดสิทธิ์ (Restrict) ให้ใช้ได้เฉพาะโดเมน GitHub Pages ของคุณเท่านั้น
+         * หาก GitHub แจ้งเตือน ให้ทำการสร้าง Key ใหม่และลบอันเก่าทิ้งทันที
+         */
+        const apiKey = "AIzaSyBDDum3ojnhCSrE2jLKIKjxwWuPWJ-iqSo"; 
         let currentAudio = null;
 
         async function speakText(text) {
             const speakBtn = document.getElementById('speakBtn');
+            if (!apiKey || apiKey === "AIzaSyBDDum3ojnhCSrE2jLKIKjxwWuPWJ-iqSo") {
+                alert("กรุณาตั้งค่า API Key ก่อนใช้งานระบบเสียงอ่าน");
+                return;
+            }
             if (!text || speakBtn.classList.contains('loading')) return;
 
             if (currentAudio) { currentAudio.pause(); currentAudio = null; }
