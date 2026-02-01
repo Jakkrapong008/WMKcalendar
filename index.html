@@ -6,6 +6,17 @@
     <title>ปฏิทินกิจกรรม โรงเรียนวัดแม่กะ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Global variables for Firebase
+        window.firebaseModules = { doc, getDoc, setDoc, updateDoc, increment, onSnapshot, getFirestore };
+    </script>
+
     <style>
         /* กำหนดฟอนต์ Prompt สำหรับทุกองค์ประกอบ */
         * {
@@ -24,12 +35,10 @@
             --gray: #e9ecef;
         }
         
-        /* กำหนดสีพื้นหลังของ body */
         body {
             background-color: var(--light-gray);
         }
         
-        /* สไตล์สำหรับคอนเทนเนอร์ปฏิทิน */
         .calendar-container {
             background-color: var(--white);
             border-radius: 1rem;
@@ -38,33 +47,28 @@
             border: 2px solid var(--secondary);
         }
         
-        /* สไตล์สำหรับส่วนหัวของปฏิทิน */
         .calendar-header {
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: var(--white);
         }
         
-        /* สไตล์สำหรับแต่ละวันในปฏิทิน */
         .calendar-day {
-            min-height: 110px; /* เพิ่มความสูงขั้นต่ำเล็กน้อย */
+            min-height: 110px;
             transition: all 0.3s ease;
             background-color: var(--white);
         }
         
-        /* สไตล์เมื่อโฮเวอร์เหนือวันในปฏิทิน */
         .calendar-day:hover {
             background-color: var(--primary-light);
             transform: scale(1.02);
             z-index: 10;
         }
         
-        /* สไตล์สำหรับวันที่มีกิจกรรม */
         .calendar-day.has-event {
-            background-color: #fef9c3; /* Yellow-100 */
+            background-color: #fef9c3;
             border: 1px inset rgba(250, 204, 21, 0.3);
         }
         
-        /* สไตล์สำหรับปุ่มหลัก */
         .btn-primary {
             background-color: var(--primary);
             color: var(--white);
@@ -72,14 +76,12 @@
             border-bottom: 3px solid var(--primary-dark);
         }
         
-        /* สไตล์เมื่อโฮเวอร์เหนือปุ่มหลัก */
         .btn-primary:hover {
             background-color: var(--primary-dark);
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(154, 0, 7, 0.3);
         }
         
-        /* สไตล์สำหรับปุ่มแบบ outline */
         .btn-outline {
             border: 2px solid var(--primary);
             color: var(--primary);
@@ -88,7 +90,6 @@
             transition: all 0.3s ease;
         }
         
-        /* สไตล์เมื่อโฮเวอร์เหนือรายการกิจกรรม */
         .event-item {
             border-left: 5px solid var(--primary);
             background-color: white;
@@ -102,7 +103,6 @@
             border-left-color: var(--secondary);
         }
         
-        /* แอนิเมชัน fade-in */
         .fade-in {
             animation: fadeIn 0.5s ease-out;
         }
@@ -112,7 +112,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* สไตล์สำหรับแท็บที่ active */
         .tab-active {
             background-color: var(--secondary);
             color: #000;
@@ -120,7 +119,6 @@
             box-shadow: 0 2px 8px rgba(250, 204, 21, 0.4);
         }
         
-        /* Loader สีแดง */
         .loader {
             border: 4px solid #f3f3f3;
             border-top: 4px solid var(--primary);
@@ -143,12 +141,18 @@
             padding: 1rem;
         }
 
-        /* ตกแต่งหัวข้อโรงเรียนเป็นพิเศษ */
         .school-title {
             background: linear-gradient(to right, var(--primary), var(--primary-dark));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        /* ตกแต่งแถบนับจำนวนผู้เข้าชม */
+        .visitor-counter {
+            background: linear-gradient(to right, #ffffff, #fffdf0);
+            border: 2px solid var(--secondary);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         }
     </style>
 </head>
@@ -255,7 +259,7 @@
         <!-- วิวปฏิทินรายเดือน -->
         <div id="calendarView" class="calendar-container mb-8 fade-in">
             <div class="calendar-header p-5">
-                <div class="grid grid-cols-7 text-center font-bold text-xl"> <!-- ปรับจาก text-lg เป็น text-xl -->
+                <div class="grid grid-cols-7 text-center font-bold text-xl">
                     <div class="text-yellow-200">อา.</div>
                     <div>จ.</div>
                     <div>อ.</div>
@@ -325,6 +329,23 @@
             </div>
             <p class="font-bold text-gray-600">© 2026 โรงเรียนวัดแม่กะ</p>
             <p>ระบบบริหารจัดการปฏิทินกิจกรรมการศึกษา</p>
+            
+            <!-- ส่วนนับจำนวนผู้เข้าชม -->
+            <div class="mt-6 flex justify-center">
+                <div class="visitor-counter flex items-center px-6 py-2 rounded-2xl border-2 border-yellow-400 shadow-sm">
+                    <div class="bg-red-600 text-white p-1.5 rounded-lg mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-none">จำนวนผู้เข้าชม</p>
+                        <p id="visitorCountDisplay" class="text-xl font-black text-red-600 leading-tight">กำลังโหลด...</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="mt-6">
                 <a href="https://www.google.co.th" class="btn-outline px-8 py-3 rounded-2xl inline-flex items-center justify-center text-base shadow-sm">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -336,8 +357,66 @@
         </footer>
     </div>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Firebase Configuration (provided by environment)
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Visitor Counter Logic
+        async function initVisitorCounter() {
+            try {
+                // RULE 3 - Auth Before Queries
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (!user) return;
+
+                    // RULE 1 - Strict Paths
+                    const statsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitorStats', 'counter');
+                    
+                    // Increment count
+                    try {
+                        const snap = await getDoc(statsDocRef);
+                        if (!snap.exists()) {
+                            await setDoc(statsDocRef, { count: 1 });
+                        } else {
+                            await updateDoc(statsDocRef, { count: increment(1) });
+                        }
+                    } catch (e) {
+                        console.error("Counter update failed:", e);
+                    }
+
+                    // Listen for real-time updates
+                    onSnapshot(statsDocRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            const count = docSnap.data().count;
+                            document.getElementById('visitorCountDisplay').textContent = count.toLocaleString() + " ครั้ง";
+                        }
+                    }, (err) => console.error("Snapshot error:", err));
+                });
+            } catch (err) {
+                console.error("Auth failed:", err);
+                document.getElementById('visitorCountDisplay').textContent = "---";
+            }
+        }
+
+        // Initialize counter
+        initVisitorCounter();
+    </script>
+
     <script>
-        // กำหนดค่าคงที่และตัวแปรส่วนกลาง
+        // โค้ดปฏิทินเดิมทั้งหมด
         let allEvents = [];
         let currentDate = new Date();
         let currentView = 'month';
@@ -346,7 +425,6 @@
         const SHEET_ID = '1VVC90lX-Yp8WROvNZvcl3cGvLKu2rssYBuCNm89LZXc';
         const SHEET_NAME = '2569';
         
-        // อ้างอิง DOM
         const elements = {
             monthBtn: document.getElementById('monthViewBtn'),
             yearBtn: document.getElementById('yearViewBtn'),
@@ -376,11 +454,11 @@
 
         function getDepartmentColor(dept) {
             const colors = {
-                'กลุ่มงานวิชาการ': '#d32f2f', // Red
-                'กลุ่มงานงบประมาณ': '#15803d', // Green
-                'กลุ่มงานบุคคล': '#7e22ce', // Purple
-                'กลุ่มงานบริหารทั่วไป': '#d97706', // Amber/Orange
-                'กลุ่มงานกิจการ': '#1d4ed8' // Blue
+                'กลุ่มงานวิชาการ': '#d32f2f',
+                'กลุ่มงานงบประมาณ': '#15803d',
+                'กลุ่มงานบุคคล': '#7e22ce',
+                'กลุ่มงานบริหารทั่วไป': '#d97706',
+                'กลุ่มงานกิจการ': '#1d4ed8'
             };
             return colors[dept?.trim()] || '#d32f2f';
         }
@@ -400,7 +478,6 @@
             elements.searchBtn.onclick = filterEvents;
             elements.closeModal.onclick = hideModal;
             elements.closeModalBtn.onclick = hideModal;
-            
             window.onclick = (e) => { if (e.target === elements.modal) hideModal(); };
             elements.titleFilter.onkeypress = (e) => { if (e.key === 'Enter') filterEvents(); };
         }
@@ -450,7 +527,6 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
-                
                 allEvents = processEvents(data);
                 populateFilters();
                 filterEvents();
@@ -502,37 +578,26 @@
         function populateFilters() {
             const persons = [...new Set(allEvents.map(e => e.person).filter(Boolean))].sort();
             const depts = [...new Set(allEvents.map(e => e.department).filter(Boolean))].sort();
-            
-            elements.personFilter.innerHTML = '<option value="">ทั้งหมด</option>' + 
-                persons.map(p => `<option value="${p}">${p}</option>`).join('');
-            elements.deptFilter.innerHTML = '<option value="">ทั้งหมด</option>' + 
-                depts.map(d => `<option value="${d}">${d}</option>`).join('');
+            elements.personFilter.innerHTML = '<option value="">ทั้งหมด</option>' + persons.map(p => `<option value="${p}">${p}</option>`).join('');
+            elements.deptFilter.innerHTML = '<option value="">ทั้งหมด</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
         }
 
         function filterEvents() {
             const title = elements.titleFilter.value.toLowerCase();
             const person = elements.personFilter.value;
             const dept = elements.deptFilter.value;
-            
             let filtered = allEvents.filter(ev => {
-                const matchSearch = (!title || ev.title.toLowerCase().includes(title)) &&
-                                    (!person || ev.person === person) &&
-                                    (!dept || ev.department === dept);
-                
+                const matchSearch = (!title || ev.title.toLowerCase().includes(title)) && (!person || ev.person === person) && (!dept || ev.department === dept);
                 if (currentView === 'month') {
                     const viewM = currentDate.getMonth();
                     const viewY = currentDate.getFullYear();
                     const evStart = ev.startDate;
                     const evEnd = ev.endDate;
-                    
-                    const inMonth = (evStart.getMonth() === viewM && evStart.getFullYear() === viewY) ||
-                                    (evEnd.getMonth() === viewM && evEnd.getFullYear() === viewY) ||
-                                    (evStart <= new Date(viewY, viewM, 1) && evEnd >= new Date(viewY, viewM + 1, 0));
+                    const inMonth = (evStart.getMonth() === viewM && evStart.getFullYear() === viewY) || (evEnd.getMonth() === viewM && evEnd.getFullYear() === viewY) || (evStart <= new Date(viewY, viewM, 1) && evEnd >= new Date(viewY, viewM + 1, 0));
                     return matchSearch && inMonth;
                 }
                 return matchSearch && ev.startDate.getFullYear() === currentDate.getFullYear();
             });
-
             elements.eventCountBadge.textContent = `${filtered.length} รายการ`;
             renderEventsList(filtered);
             if (currentView === 'month') renderMonthCalendar(filtered);
@@ -545,36 +610,27 @@
             const m = currentDate.getMonth();
             const first = new Date(y, m, 1).getDay();
             const last = new Date(y, m + 1, 0).getDate();
-
             for (let i = 0; i < first; i++) {
                 const empty = document.createElement('div');
                 empty.className = 'calendar-day bg-gray-50/50';
                 elements.calendarDays.appendChild(empty);
             }
-
             for (let d = 1; d <= last; d++) {
                 const date = new Date(y, m, d);
                 const dayEvents = events.filter(ev => date >= ev.startDate && date <= ev.endDate);
-                
                 const cell = document.createElement('div');
                 cell.className = `calendar-day p-2 border-r border-b border-gray-100 ${dayEvents.length > 0 ? 'has-event' : ''}`;
-                
                 const header = document.createElement('div');
                 header.className = 'flex justify-between items-start';
-                // ปรับขนาดตัวเลขวันที่เป็น text-xl
                 header.innerHTML = `<span class="font-bold text-xl text-gray-700">${d}</span>`;
-                
                 if (dayEvents.length > 0) {
                     header.innerHTML += `<span class="text-xs bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold">${dayEvents.length}</span>`;
                 }
-                
                 cell.appendChild(header);
-                
                 const list = document.createElement('div');
                 list.className = 'mt-2 space-y-1';
                 dayEvents.slice(0, 2).forEach(ev => {
                     const item = document.createElement('div');
-                    // ปรับขนาดตัวอักษรกิจกรรมในช่องเป็น text-[12px]
                     item.className = 'text-[12px] font-medium truncate px-1.5 py-0.5 rounded border-l-4 cursor-pointer hover:bg-white transition-colors';
                     item.style.borderLeftColor = ev.color;
                     item.style.backgroundColor = `${ev.color}15`;
@@ -582,15 +638,12 @@
                     item.onclick = (e) => { e.stopPropagation(); showEventDetails(ev); };
                     list.appendChild(item);
                 });
-                
                 if (dayEvents.length > 2) {
                     const more = document.createElement('div');
-                    // ปรับขนาดตัวอักษร "อีก..." เป็น text-[11px]
                     more.className = 'text-[11px] text-center text-gray-400 font-bold mt-1';
                     more.textContent = `+ อีก ${dayEvents.length - 2}`;
                     list.appendChild(more);
                 }
-                
                 cell.appendChild(list);
                 elements.calendarDays.appendChild(cell);
             }
@@ -599,17 +652,14 @@
         function renderYearCalendar(events) {
             elements.yearView.innerHTML = '';
             const y = currentDate.getFullYear();
-            
             for (let m = 0; m < 12; m++) {
                 const container = document.createElement('div');
                 container.className = 'bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-yellow-200 transition-all cursor-pointer';
                 container.onclick = () => { currentDate.setMonth(m); switchView('month'); };
-                
                 const header = document.createElement('div');
                 header.className = 'text-center font-bold text-red-600 mb-3 border-b pb-2';
                 header.textContent = thaiMonths[m];
                 container.appendChild(header);
-                
                 const grid = document.createElement('div');
                 grid.className = 'grid grid-cols-7 gap-1 text-[10px] text-center';
                 ['อ', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].forEach(d => {
@@ -618,12 +668,9 @@
                     dh.textContent = d;
                     grid.appendChild(dh);
                 });
-                
                 const first = new Date(y, m, 1).getDay();
                 const last = new Date(y, m + 1, 0).getDate();
-                
                 for (let i = 0; i < first; i++) grid.appendChild(document.createElement('div'));
-                
                 for (let d = 1; d <= last; d++) {
                     const date = new Date(y, m, d);
                     const hasEv = events.some(ev => date >= ev.startDate && date <= ev.endDate);
@@ -632,7 +679,6 @@
                     day.textContent = d;
                     grid.appendChild(day);
                 }
-                
                 container.appendChild(grid);
                 elements.yearView.appendChild(container);
             }
@@ -644,13 +690,11 @@
                 elements.eventsList.innerHTML = '<div class="text-center py-10 text-gray-400">ไม่พบกิจกรรมในช่วงเวลานี้</div>';
                 return;
             }
-
             const sorted = [...events].sort((a, b) => a.startDate - b.startDate);
             sorted.forEach(ev => {
                 const item = document.createElement('div');
                 item.className = 'event-item p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between cursor-pointer';
                 item.onclick = () => showEventDetails(ev);
-                
                 item.innerHTML = `
                     <div class="flex items-center">
                         <div class="mr-4 text-center min-w-[60px]">
@@ -679,26 +723,13 @@
             cat.textContent = ev.department;
             cat.style.backgroundColor = `${ev.color}15`;
             cat.style.color = ev.color;
-
             elements.modalContent.innerHTML = `
                 <h3 class="text-3xl font-black text-gray-800 mb-4 leading-tight">${ev.title}</h3>
                 <div class="space-y-4 text-gray-600">
-                    <div class="flex items-center">
-                        <div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center mr-4 text-red-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <p class="text-xs font-bold text-gray-400 uppercase">วันที่จัดกิจกรรม</p>
-                            <p class="font-bold text-lg">${ev.startDate.getDate()} ${thaiMonths[ev.startDate.getMonth()]} ${ev.startDate.getFullYear() + 543} ${ev.startDate.getTime() !== ev.endDate.getTime() ? ' - ' + ev.endDate.getDate() + ' ' + thaiMonths[ev.endDate.getMonth()] : ''}</p>
-                        </div>
-                    </div>
-                    <!-- ส่วนอื่นๆ เหมือนเดิม -->
+                    <div class="flex items-center"><div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center mr-4 text-red-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div><div><p class="text-xs font-bold text-gray-400 uppercase">วันที่จัดกิจกรรม</p><p class="font-bold text-lg">${ev.startDate.getDate()} ${thaiMonths[ev.startDate.getMonth()]} ${ev.startDate.getFullYear() + 543} ${ev.startDate.getTime() !== ev.endDate.getTime() ? ' - ' + ev.endDate.getDate() + ' ' + thaiMonths[ev.endDate.getMonth()] : ''}</p></div></div>
                     ${ev.time ? `<div class="flex items-center"><div class="w-10 h-10 bg-yellow-50 rounded-xl flex items-center justify-center mr-4 text-yellow-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div><div><p class="text-xs font-bold text-gray-400 uppercase">เวลา</p><p class="font-bold">${ev.time}</p></div></div>` : ''}
                     ${ev.location ? `<div class="flex items-center"><div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mr-4 text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div><div><p class="text-xs font-bold text-gray-400 uppercase">สถานที่</p><p class="font-bold">${ev.location}</p></div></div>` : ''}
                     <div class="flex items-center"><div class="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center mr-4 text-purple-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></div><div><p class="text-xs font-bold text-gray-400 uppercase">ผู้รับผิดชอบ</p><p class="font-bold">${ev.person || 'ไม่ระบุ'}</p></div></div>
-
                     ${ev.details ? `<div class="mt-6 p-4 bg-gray-50 rounded-2xl border-l-4 border-red-600"><p class="text-xs font-bold text-gray-400 mb-1">รายละเอียดกิจกรรม</p><p class="text-gray-700 leading-relaxed">${ev.details}</p></div>` : ''}
                     ${ev.additionalInfo ? `<div class="mt-4 p-4 bg-yellow-50 rounded-2xl border-l-4 border-yellow-400"><p class="text-xs font-bold text-yellow-600 mb-1">ข้อมูลเพิ่มเติม</p><p class="text-gray-700 leading-relaxed">${ev.additionalInfo}</p></div>` : ''}
                 </div>
@@ -710,7 +741,6 @@
         function showLoading(show) { elements.loading.classList.toggle('hidden', !show); }
         function showError(msg) { elements.errorText.textContent = msg; elements.errorDiv.classList.remove('hidden'); }
         function hideError() { elements.errorDiv.classList.add('hidden'); }
-
         window.onload = init;
     </script>
 </body>
