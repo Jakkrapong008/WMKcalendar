@@ -13,6 +13,7 @@
         import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
+        // --- Firebase Config ---
         const myFirebaseConfig = {
             apiKey: "AIzaSyAl7gS91aKbKAbtY8kdvXjYwXv3VsMIoHE",
             authDomain: "count-calendar-d9fe4.firebaseapp.com",
@@ -134,6 +135,18 @@
             font-weight: bold;
             box-shadow: 0 2px 8px rgba(250, 204, 21, 0.4);
         }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
         .school-title {
             background: linear-gradient(to right, var(--primary), var(--primary-dark));
             -webkit-background-clip: text;
@@ -147,8 +160,8 @@
         }
         .btn-speak { transition: all 0.2s ease; }
         .btn-speak:hover { background-color: #fee2e2; transform: scale(1.1); }
-        .btn-speak.speaking { animation: pulse 1s infinite; background-color: var(--primary); color: white; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .btn-speak.loading { animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -186,6 +199,43 @@
             </div>
         </div>
 
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8 fade-in">
+            <div class="flex items-center mb-4">
+                <div class="bg-yellow-400 p-2 rounded-lg mr-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">ค้นหากิจกรรม</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-gray-600 ml-1">ชื่อกิจกรรม</label>
+                    <input type="text" id="titleFilter" class="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl focus:border-red-400 focus:bg-white transition-all outline-none" placeholder="ค้นหาชื่อกิจกรรม...">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-gray-600 ml-1">ผู้รับผิดชอบ</label>
+                    <select id="personFilter" class="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl focus:border-red-400 focus:bg-white transition-all outline-none cursor-pointer">
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-gray-600 ml-1">กลุ่มงาน</label>
+                    <select id="departmentFilter" class="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl focus:border-red-400 focus:bg-white transition-all outline-none cursor-pointer">
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button id="searchBtn" class="btn-primary px-8 py-3 rounded-xl flex items-center font-bold">ค้นหาทันที</button>
+            </div>
+        </div>
+
+        <div id="loadingIndicator" class="flex flex-col justify-center items-center py-16 hidden">
+            <div class="loader mb-4"></div>
+            <p class="text-gray-500 font-medium">กำลังดึงข้อมูล...</p>
+        </div>
+
         <div id="calendarView" class="calendar-container mb-8 fade-in">
             <div class="calendar-header p-5">
                 <div class="grid grid-cols-7 text-center font-bold text-xl">
@@ -214,7 +264,6 @@
             <div id="eventsList" class="space-y-4"></div>
         </div>
 
-        <!-- Modal รายละเอียดกิจกรรม -->
         <div id="eventModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
             <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border-t-8 border-red-600">
                 <div class="p-8">
@@ -238,80 +287,136 @@
         </div>
 
         <footer class="text-center text-gray-400 text-sm mt-12 mb-8 fade-in">
+            <div class="flex justify-center space-x-4 mb-4">
+                <div class="w-12 h-1 bg-red-600 rounded-full"></div>
+                <div class="w-12 h-1 bg-yellow-400 rounded-full"></div>
+                <div class="w-12 h-1 bg-red-600 rounded-full"></div>
+            </div>
             <p class="font-bold text-gray-600">© 2026 โรงเรียนวัดแม่กะ</p>
+            <p>ระบบบริหารจัดการปฏิทินกิจกรรมการศึกษา</p>
             <div class="mt-6 flex justify-center">
-                <div class="visitor-counter flex items-center px-6 py-2 rounded-2xl border-2 border-yellow-400">
+                <div class="visitor-counter flex items-center px-6 py-2 rounded-2xl border-2 border-yellow-400 shadow-sm">
                     <div class="bg-red-600 text-white p-1.5 rounded-lg mr-3 font-bold text-lg">👁</div>
                     <div class="text-left">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase leading-none">จำนวนผู้เข้าชม</p>
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-none">จำนวนผู้เข้าชม</p>
                         <p id="visitorCountDisplay" class="text-xl font-black text-red-600 leading-tight">กำลังโหลด...</p>
                     </div>
                 </div>
             </div>
+            <div class="mt-6">
+                <a href="https://www.google.co.th" class="btn-outline px-8 py-3 rounded-2xl inline-flex items-center justify-center text-base shadow-sm">กลับสู่หน้าหลัก</a>
+            </div>
         </footer>
     </div>
 
+    <!-- Hidden Audio element for persistence -->
+    <audio id="ttsAudioPlayer" style="display:none"></audio>
+
     <script>
-        // --- Web Speech API Logic ---
-        let currentUtterance = null;
-        let isSpeaking = false;
+        const apiKey = "AIzaSyBDDum3ojnhCSrE2jLKIKjxwWuPWJ-iqSo";
+        let currentAudio = null;
+        const globalAudioPlayer = document.getElementById('ttsAudioPlayer');
 
-        function speakText(text) {
+        async function speakText(text) {
             const speakBtn = document.getElementById('speakBtn');
-            
-            // 1. เคลียร์เสียงเดิมทิ้งก่อน (ป้องกันอาการค้างใน Line)
-            window.speechSynthesis.cancel();
+            if (!text || speakBtn.classList.contains('loading')) return;
 
-            if (isSpeaking) {
-                isSpeaking = false;
-                speakBtn.classList.remove('speaking');
-                return;
-            }
+            // --- Mobile Browser Trick: Prime/Unlock Audio ---
+            // เล่นเสียงเงียบๆ ทันทีที่คลิก เพื่อรักษา User Gesture ไว้
+            globalAudioPlayer.src = "data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+            globalAudioPlayer.play().catch(e => console.log("Audio priming failed", e));
 
-            if (!text) return;
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 
-            // 2. ปลุกระบบเสียง (Resume) - จำเป็นสำหรับบราวเซอร์มือถือ
-            window.speechSynthesis.resume();
+            speakBtn.classList.add('loading');
+            const prompt = `อ่านออกเสียงข้อมูลกิจกรรมดังนี้ด้วยสำเนียงไทยที่เป็นธรรมชาติ: ${text}`;
 
-            // 3. สร้างก้อนคำสั่งเสียง
-            currentUtterance = new SpeechSynthesisUtterance(text);
-            
-            // 4. ตั้งค่าภาษาไทยและค่าพื้นฐาน
-            currentUtterance.lang = 'th-TH';
-            currentUtterance.rate = 1.0;
-            currentUtterance.pitch = 1.0;
-
-            // 5. จัดการสถานะปุ่ม
-            currentUtterance.onstart = () => {
-                isSpeaking = true;
-                speakBtn.classList.add('speaking');
-            };
-
-            currentUtterance.onend = () => {
-                isSpeaking = false;
-                speakBtn.classList.remove('speaking');
-            };
-
-            currentUtterance.onerror = (e) => {
-                console.error("Speech Error:", e);
-                isSpeaking = false;
-                speakBtn.classList.remove('speaking');
-                // แจ้งเตือนผู้ใช้หากบราวเซอร์บล็อกเสียง
-                if (e.error === 'not-allowed') {
-                    console.warn("Speech synthesis blocked by browser policies.");
+            const fetchWithRetry = async (url, options, retries = 5, delay = 1000) => {
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(url, options);
+                        if (response.ok) return response;
+                        if (response.status !== 429 && response.status < 500) throw new Error(`HTTP Error: ${response.status}`);
+                    } catch (err) {
+                        if (i === retries - 1) throw err;
+                    }
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
                 }
             };
 
-            // 6. พยายามเลือกเสียงภาษาไทยที่มีในระบบ
-            const voices = window.speechSynthesis.getVoices();
-            const thaiVoice = voices.find(v => v.lang.startsWith('th'));
-            if (thaiVoice) currentUtterance.voice = thaiVoice;
+            try {
+                const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } }
+                        },
+                        model: "gemini-2.5-flash-preview-tts"
+                    })
+                });
 
-            // 7. สั่งพูด
-            window.speechSynthesis.speak(currentUtterance);
+                const result = await response.json();
+                const audioPart = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                if (!audioPart) throw new Error("No audio data");
+
+                const base64Audio = audioPart.inlineData.data;
+                const sampleRate = parseInt(audioPart.inlineData.mimeType.match(/rate=(\d+)/)?.[1] || "24000");
+
+                const pcmBuffer = base64ToArrayBuffer(base64Audio);
+                const wavBlob = pcmToWav(pcmBuffer, sampleRate);
+                const audioUrl = URL.createObjectURL(wavBlob);
+
+                // ใช้ Global player ที่ถูก Unlock แล้วในการเล่นเสียงจริง
+                globalAudioPlayer.src = audioUrl;
+                globalAudioPlayer.onended = () => {
+                    speakBtn.classList.remove('loading');
+                    URL.revokeObjectURL(audioUrl);
+                };
+                
+                // สั่งเล่นเสียง (Gesture ยังคงอยู่เพราะเรา Prime ไว้ตอนต้นฟังก์ชัน)
+                const playPromise = globalAudioPlayer.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error("Playback blocked:", error);
+                        speakBtn.classList.remove('loading');
+                        // หากยังถูกบล็อก ให้แสดงกล่องข้อความแนะนำ
+                        alert("การอ่านออกเสียงถูกระงับโดยบราวเซอร์ของคุณ โปรดเปิดหน้าเว็บนี้ด้วย Chrome หรือ Safari แทนเพื่อการใช้งานที่สมบูรณ์");
+                    });
+                }
+                
+                currentAudio = globalAudioPlayer;
+
+            } catch (error) {
+                console.error("TTS Error:", error);
+                speakBtn.classList.remove('loading');
+            }
         }
 
-        // --- Core Calendar Logic ---
+        function pcmToWav(pcmBuffer, sampleRate) {
+            const len = pcmBuffer.byteLength;
+            const buffer = new ArrayBuffer(44 + len);
+            const view = new DataView(buffer);
+            const writeStr = (v, o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+            writeStr(view, 0, 'RIFF'); view.setUint32(4, 36 + len, true); writeStr(view, 8, 'WAVE');
+            writeStr(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true); writeStr(view, 36, 'data'); view.setUint32(40, len, true);
+            new Uint8Array(buffer, 44).set(new Uint8Array(pcmBuffer));
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary = window.atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes.buffer;
+        }
+
         let allEvents = [];
         let currentDate = new Date();
         let currentView = 'month';
@@ -333,6 +438,12 @@
                 nextBtn: document.getElementById('nextBtn'),
                 eventsList: document.getElementById('eventsList'),
                 eventCountBadge: document.getElementById('eventCountBadge'),
+                loading: document.getElementById('loadingIndicator'),
+                refreshBtn: document.getElementById('refreshBtn'),
+                searchBtn: document.getElementById('searchBtn'),
+                titleFilter: document.getElementById('titleFilter'),
+                personFilter: document.getElementById('personFilter'),
+                deptFilter: document.getElementById('departmentFilter'),
                 modal: document.getElementById('eventModal'),
                 closeModal: document.getElementById('closeModal'),
                 closeModalBtn: document.getElementById('closeModalBtn'),
@@ -341,37 +452,28 @@
             };
             elements.monthBtn.onclick = () => switchView('month');
             elements.yearBtn.onclick = () => switchView('year');
-            elements.prevBtn.onclick = () => { navigateDate(-1); };
-            elements.nextBtn.onclick = () => { navigateDate(1); };
+            elements.prevBtn.onclick = navigatePrevious;
+            elements.nextBtn.onclick = navigateNext;
+            elements.refreshBtn.onclick = fetchEvents;
+            elements.searchBtn.onclick = filterEvents;
             elements.closeModal.onclick = elements.closeModalBtn.onclick = closeEventModal;
+            elements.titleFilter.onkeypress = (e) => { if (e.key === 'Enter') filterEvents(); };
             window.onclick = (e) => { if (e.target === elements.modal) closeEventModal(); };
-            
-            // ปลุก Voice Engine ทันทีที่ผู้ใช้สัมผัสหน้าจอครั้งแรก (Fix สำหรับมือถือ)
-            const unlockSpeech = () => {
-                window.speechSynthesis.getVoices();
-                window.speechSynthesis.resume();
-                document.removeEventListener('touchstart', unlockSpeech);
-                document.removeEventListener('click', unlockSpeech);
-            };
-            document.addEventListener('touchstart', unlockSpeech);
-            document.addEventListener('click', unlockSpeech);
         }
 
         function closeEventModal() {
             elements.modal.classList.add('hidden');
-            window.speechSynthesis.cancel();
-            isSpeaking = false;
-            if (elements.speakBtn) elements.speakBtn.classList.remove('speaking');
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+            elements.speakBtn.classList.remove('loading');
         }
 
-        function navigateDate(dir) {
-            if (currentView === 'month') currentDate.setMonth(currentDate.getMonth() + dir);
-            else currentDate.setFullYear(currentDate.getFullYear() + dir);
-            updateCalendarTitle();
-            renderActiveView();
+        function getDepartmentColor(dept) {
+            const colors = { 'กลุ่มงานวิชาการ': '#d32f2f', 'กลุ่มงานงบประมาณ': '#15803d', 'กลุ่มงานบุคคล': '#7e22ce', 'กลุ่มงานบริหารทั่วไป': '#d97706', 'กลุ่มงานกิจการ': '#1d4ed8' };
+            return colors[dept?.trim()] || '#d32f2f';
         }
 
         async function fetchEvents() {
+            elements.loading.classList.remove('hidden');
             try {
                 const response = await fetch(`${API_URL}?sheetId=${SHEET_ID}&sheetName=${SHEET_NAME}`);
                 const data = await response.json();
@@ -391,13 +493,14 @@
                         color: getDepartmentColor(item['กลุ่มงาน'])
                     };
                 }).filter(ev => ev.startDate);
-                renderActiveView();
+                populateFilters(); filterEvents();
             } catch (error) { console.error(error); }
+            elements.loading.classList.add('hidden');
         }
 
         function parseDate(dateStr) {
             if (!dateStr) return null;
-            if (dateStr.includes('T')) return new Date(dateStr);
+            if (dateStr.includes('T')) { const d = new Date(dateStr); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
             const parts = dateStr.split(/[-/]/);
             if (parts.length === 3) {
                 let y = parseInt(parts[0].length === 4 ? parts[0] : parts[2]);
@@ -407,36 +510,35 @@
             return new Date(dateStr);
         }
 
-        function getDepartmentColor(dept) {
-            const colors = { 'กลุ่มงานวิชาการ': '#d32f2f', 'กลุ่มงานงบประมาณ': '#15803d', 'กลุ่มงานบุคคล': '#7e22ce', 'กลุ่มงานบริหารทั่วไป': '#d97706', 'กลุ่มงานกิจการ': '#1d4ed8' };
-            return colors[dept?.trim()] || '#d32f2f';
+        function populateFilters() {
+            const persons = [...new Set(allEvents.map(e => e.person).filter(Boolean))].sort();
+            const depts = [...new Set(allEvents.map(e => e.department).filter(Boolean))].sort();
+            elements.personFilter.innerHTML = '<option value="">ทั้งหมด</option>' + persons.map(p => `<option value="${p}">${p}</option>`).join('');
+            elements.deptFilter.innerHTML = '<option value="">ทั้งหมด</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
         }
 
-        function renderActiveView() {
+        function filterEvents() {
+            const title = elements.titleFilter.value.toLowerCase(), person = elements.personFilter.value, dept = elements.deptFilter.value;
             const filtered = allEvents.filter(ev => {
-                if (currentView === 'month') {
-                    const m = currentDate.getMonth(), y = currentDate.getFullYear();
-                    return (ev.startDate.getMonth() === m && ev.startDate.getFullYear() === y) || (ev.endDate.getMonth() === m && ev.endDate.getFullYear() === y);
-                }
-                return ev.startDate.getFullYear() === currentDate.getFullYear();
+                const match = (!title || ev.title.toLowerCase().includes(title)) && (!person || ev.person === person) && (!dept || ev.department === dept);
+                if (currentView === 'month') { const m = currentDate.getMonth(), y = currentDate.getFullYear(); return match && ((ev.startDate.getMonth() === m && ev.startDate.getFullYear() === y) || (ev.endDate.getMonth() === m && ev.endDate.getFullYear() === y)); }
+                return match && ev.startDate.getFullYear() === currentDate.getFullYear();
             });
-            
             elements.eventCountBadge.textContent = `${filtered.length} รายการ`;
             renderEventsList(filtered);
-            if (currentView === 'month') renderMonthCalendar(filtered);
-            else renderYearCalendar(filtered);
+            if (currentView === 'month') renderMonthCalendar(filtered); else renderYearCalendar(filtered);
         }
 
         function renderMonthCalendar(events) {
             elements.calendarDays.innerHTML = '';
             const y = currentDate.getFullYear(), m = currentDate.getMonth();
             const first = new Date(y, m, 1).getDay(), last = new Date(y, m + 1, 0).getDate();
-            for (let i = 0; i < first; i++) elements.calendarDays.appendChild(Object.assign(document.createElement('div'), { className: 'bg-gray-50/50 p-2' }));
+            for (let i = 0; i < first; i++) elements.calendarDays.appendChild(Object.assign(document.createElement('div'), { className: 'calendar-day bg-gray-50/50' }));
             for (let d = 1; d <= last; d++) {
                 const date = new Date(y, m, d);
                 const dayEvs = events.filter(ev => date >= ev.startDate && date <= ev.endDate);
                 const cell = Object.assign(document.createElement('div'), { className: `calendar-day p-2 border-r border-b border-gray-100 ${dayEvs.length > 0 ? 'has-event' : ''}` });
-                cell.innerHTML = `<div class="flex justify-between font-bold text-xl">${d}</div>`;
+                cell.innerHTML = `<div class="flex justify-between font-bold text-xl">${d}${dayEvs.length > 0 ? `<span class="bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">${dayEvs.length}</span>` : ''}</div>`;
                 const list = document.createElement('div');
                 dayEvs.slice(0, 2).forEach(ev => {
                     const item = Object.assign(document.createElement('div'), { className: 'text-[12px] truncate px-1 rounded border-l-4 mt-1 cursor-pointer', textContent: ev.title });
@@ -454,9 +556,10 @@
                 card.onclick = () => { currentDate.setMonth(m); switchView('month'); };
                 card.innerHTML = `<div class="text-center font-bold text-red-600 border-b mb-2">${thaiMonths[m]}</div>`;
                 const grid = Object.assign(document.createElement('div'), { className: 'grid grid-cols-7 gap-1 text-[10px] text-center' });
+                ['อ','จ','อ','พ','พฤ','ศ','ส'].forEach(d => grid.innerHTML += `<div class="text-gray-400">${d}</div>`);
+                const last = new Date(currentDate.getFullYear(), m + 1, 0).getDate();
                 const startDay = new Date(currentDate.getFullYear(), m, 1).getDay();
                 for(let i=0; i<startDay; i++) grid.innerHTML += `<div></div>`;
-                const last = new Date(currentDate.getFullYear(), m + 1, 0).getDate();
                 for (let d = 1; d <= last; d++) {
                     const has = events.some(ev => new Date(currentDate.getFullYear(), m, d) >= ev.startDate && new Date(currentDate.getFullYear(), m, d) <= ev.endDate);
                     grid.innerHTML += `<div class="py-1 ${has ? 'bg-yellow-400 rounded-full font-bold' : ''}">${d}</div>`;
@@ -472,7 +575,7 @@
                 item.onclick = () => showEventDetails(ev);
                 item.innerHTML = `<div class="flex">
                     <div class="mr-4 text-center">
-                        <div class="text-xs text-gray-400 font-bold uppercase">${thaiMonths[ev.startDate.getMonth()].substring(0,3)}</div>
+                        <div class="text-xs text-gray-400 font-bold">${thaiMonths[ev.startDate.getMonth()].substring(0,3)}</div>
                         <div class="text-2xl font-black text-red-600">${ev.startDate.getDate()}</div>
                     </div>
                     <div><h4 class="font-bold text-lg">${ev.title}</h4><div class="text-xs text-gray-500">${ev.department}</div></div>
@@ -484,12 +587,9 @@
         function showEventDetails(ev) {
             const cat = document.getElementById('modalCategory');
             cat.textContent = ev.department; cat.style.backgroundColor = `${ev.color}15`; cat.style.color = ev.color;
-            
-            const speakTxt = `กิจกรรม ${ev.title}. จัดขึ้นในวันที่ ${ev.startDate.getDate()} ${thaiMonths[ev.startDate.getMonth()]} ${ev.startDate.getFullYear()+543}. ${ev.location ? 'สถานที่คือ ' + ev.location : ''}. ผู้รับผิดชอบคือ ${ev.person || 'ไม่ระบุ'}. ${ev.details ? 'รายละเอียดคือ ' + ev.details : ''}. ${ev.additionalInfo ? 'ข้อมูลเพิ่มเติมคือ ' + ev.additionalInfo : ''}`;
-            
-            elements.speakBtn.onclick = (e) => { e.stopPropagation(); speakText(speakTxt); };
-            
-            elements.modalContent.innerHTML = `<h3 class="text-3xl font-black mb-4 leading-tight">${ev.title}</h3>
+            const speakTxt = `กิจกรรม ${ev.title}. จัดขึ้นวันที่ ${ev.startDate.getDate()} ${thaiMonths[ev.startDate.getMonth()]} ${ev.startDate.getFullYear()+543}. ${ev.location ? 'สถานที่คือ ' + ev.location : ''}. ผู้รับผิดชอบคือ ${ev.person || 'ไม่ระบุ'}. ${ev.details ? 'รายละเอียดคือ ' + ev.details : ''}. ${ev.additionalInfo ? 'ข้อมูลเพิ่มเติมคือ ' + ev.additionalInfo : ''}`;
+            elements.speakBtn.onclick = () => speakText(speakTxt);
+            elements.modalContent.innerHTML = `<h3 class="text-3xl font-black mb-4">${ev.title}</h3>
                 <div class="space-y-4">
                     <div class="font-bold flex items-center"><span class="mr-2">📅</span> ${ev.startDate.getDate()} ${thaiMonths[ev.startDate.getMonth()]} ${ev.startDate.getFullYear()+543}</div>
                     ${ev.location ? `<div class="flex items-center"><span class="mr-2">📍</span> ${ev.location}</div>` : ''}
@@ -506,18 +606,13 @@
             elements.yearBtn.classList.toggle('tab-active', view === 'year');
             elements.calendarView.classList.toggle('hidden', view !== 'month');
             elements.yearView.classList.toggle('hidden', view !== 'year');
-            updateCalendarTitle(); renderActiveView();
+            updateCalendarTitle(); filterEvents();
         }
 
         function updateCalendarTitle() { elements.currentPeriod.textContent = currentView === 'month' ? `${thaiMonths[currentDate.getMonth()]} ${currentDate.getFullYear()+543}` : `ปี พ.ศ. ${currentDate.getFullYear()+543}`; }
-        
-        window.addEventListener('load', () => { 
-            setupUI(); fetchEvents(); updateCalendarTitle();
-            // โหลดเสียงล่วงหน้า
-            if (window.speechSynthesis.onvoiceschanged !== undefined) {
-                window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-            }
-        });
+        function navigatePrevious() { if (currentView === 'month') currentDate.setMonth(currentDate.getMonth()-1); else currentDate.setFullYear(currentDate.getFullYear()-1); updateCalendarTitle(); filterEvents(); }
+        function navigateNext() { if (currentView === 'month') currentDate.setMonth(currentDate.getMonth()+1); else currentDate.setFullYear(currentDate.getFullYear()+1); updateCalendarTitle(); filterEvents(); }
+        window.addEventListener('load', () => { setupUI(); fetchEvents(); updateCalendarTitle(); });
     </script>
 </body>
 </html>
