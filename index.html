@@ -13,7 +13,6 @@
         import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // --- Firebase Config ---
         const myFirebaseConfig = {
             apiKey: "AIzaSyAl7gS91aKbKAbtY8kdvXjYwXv3VsMIoHE",
             authDomain: "count-calendar-d9fe4.firebaseapp.com",
@@ -260,8 +259,10 @@
         function speakText(text) {
             const speakBtn = document.getElementById('speakBtn');
             
+            // 1. เคลียร์เสียงเดิมทิ้งก่อน (ป้องกันอาการค้างใน Line)
+            window.speechSynthesis.cancel();
+
             if (isSpeaking) {
-                window.speechSynthesis.cancel();
                 isSpeaking = false;
                 speakBtn.classList.remove('speaking');
                 return;
@@ -269,15 +270,18 @@
 
             if (!text) return;
 
-            // สร้างก้อนคำสั่งเสียง
+            // 2. ปลุกระบบเสียง (Resume) - จำเป็นสำหรับบราวเซอร์มือถือ
+            window.speechSynthesis.resume();
+
+            // 3. สร้างก้อนคำสั่งเสียง
             currentUtterance = new SpeechSynthesisUtterance(text);
             
-            // ตั้งค่าภาษาไทย
+            // 4. ตั้งค่าภาษาไทยและค่าพื้นฐาน
             currentUtterance.lang = 'th-TH';
-            currentUtterance.rate = 1.0; // ความเร็วปกติ
-            currentUtterance.pitch = 1.0; // ระดับเสียงปกติ
+            currentUtterance.rate = 1.0;
+            currentUtterance.pitch = 1.0;
 
-            // จัดการ Event
+            // 5. จัดการสถานะปุ่ม
             currentUtterance.onstart = () => {
                 isSpeaking = true;
                 speakBtn.classList.add('speaking');
@@ -292,14 +296,18 @@
                 console.error("Speech Error:", e);
                 isSpeaking = false;
                 speakBtn.classList.remove('speaking');
+                // แจ้งเตือนผู้ใช้หากบราวเซอร์บล็อกเสียง
+                if (e.error === 'not-allowed') {
+                    console.warn("Speech synthesis blocked by browser policies.");
+                }
             };
 
-            // ตรวจสอบและเลือกเสียงภาษาไทยที่มีในเครื่อง (ถ้ามี)
+            // 6. พยายามเลือกเสียงภาษาไทยที่มีในระบบ
             const voices = window.speechSynthesis.getVoices();
-            const thaiVoice = voices.find(v => v.lang === 'th-TH' || v.lang === 'th_TH');
+            const thaiVoice = voices.find(v => v.lang.startsWith('th'));
             if (thaiVoice) currentUtterance.voice = thaiVoice;
 
-            // สั่งพูด
+            // 7. สั่งพูด
             window.speechSynthesis.speak(currentUtterance);
         }
 
@@ -337,6 +345,16 @@
             elements.nextBtn.onclick = () => { navigateDate(1); };
             elements.closeModal.onclick = elements.closeModalBtn.onclick = closeEventModal;
             window.onclick = (e) => { if (e.target === elements.modal) closeEventModal(); };
+            
+            // ปลุก Voice Engine ทันทีที่ผู้ใช้สัมผัสหน้าจอครั้งแรก (Fix สำหรับมือถือ)
+            const unlockSpeech = () => {
+                window.speechSynthesis.getVoices();
+                window.speechSynthesis.resume();
+                document.removeEventListener('touchstart', unlockSpeech);
+                document.removeEventListener('click', unlockSpeech);
+            };
+            document.addEventListener('touchstart', unlockSpeech);
+            document.addEventListener('click', unlockSpeech);
         }
 
         function closeEventModal() {
@@ -467,8 +485,7 @@
             const cat = document.getElementById('modalCategory');
             cat.textContent = ev.department; cat.style.backgroundColor = `${ev.color}15`; cat.style.color = ev.color;
             
-            // เตรียมข้อความอ่านออกเสียง (รวมหัวข้อ ข้อมูลเพิ่มเติม)
-            const speakTxt = `กิจกรรม ${ev.title}. จัดขึ้นในวันที่ ${ev.startDate.getDate()} ${thaiMonths[ev.startDate.getMonth()]} ${ev.startDate.getFullYear()+543}. ${ev.location ? 'สถานที่จัดงานคือ ' + ev.location : ''}. ผู้รับผิดชอบคือ ${ev.person || 'ไม่ระบุ'}. ${ev.details ? 'รายละเอียดกิจกรรมคือ ' + ev.details : ''}. ${ev.additionalInfo ? 'และมีข้อมูลเพิ่มเติมคือ ' + ev.additionalInfo : ''}`;
+            const speakTxt = `กิจกรรม ${ev.title}. จัดขึ้นในวันที่ ${ev.startDate.getDate()} ${thaiMonths[ev.startDate.getMonth()]} ${ev.startDate.getFullYear()+543}. ${ev.location ? 'สถานที่คือ ' + ev.location : ''}. ผู้รับผิดชอบคือ ${ev.person || 'ไม่ระบุ'}. ${ev.details ? 'รายละเอียดคือ ' + ev.details : ''}. ${ev.additionalInfo ? 'ข้อมูลเพิ่มเติมคือ ' + ev.additionalInfo : ''}`;
             
             elements.speakBtn.onclick = (e) => { e.stopPropagation(); speakText(speakTxt); };
             
@@ -496,8 +513,10 @@
         
         window.addEventListener('load', () => { 
             setupUI(); fetchEvents(); updateCalendarTitle();
-            // โหลดเสียงเริ่มต้น (เพื่อความเสถียรของ Web Speech API)
-            window.speechSynthesis.getVoices();
+            // โหลดเสียงล่วงหน้า
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+            }
         });
     </script>
 </body>
